@@ -145,15 +145,16 @@ if(stats.lastWon!=null&&stats.lastWon<puzzleNo-1&&stats.cur){stats.cur=0;save('s
 // ---------- modals ----------
 const anyModalOpen=()=>!!document.querySelector('.overlay:not([hidden]),.screen:not([hidden])');
 function openModal(n){closeModals();if(n==='stats')renderStats();if(n==='end'){renderEndPanel();n='stats';}if(n==='poke')renderPokeModal();$('#modal-'+n).hidden=false;}
-function closeModals(){document.querySelectorAll('.overlay').forEach(o=>o.hidden=true);}
+function closeModals(){document.querySelectorAll('.overlay').forEach(o=>o.hidden=true);const s=$('#modal-stats');if(s)s.classList.remove('end-open');}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(o.dataset.required)return;if(e.target===o||e.target.closest('.close'))closeModals();});});
 $('#btn-help').onclick=()=>openModal('help');
 $('#btn-stats').onclick=()=>openModal('stats');
 $('#btn-settings').onclick=()=>{openModal('settings');renderCode();};
 
 function renderStats(){
-  $('#stats-h').textContent='Your Statistics';
-  $('#stats-personal').hidden=false;$('#end-board').hidden=true;
+  $('#stats-h').hidden=false;$('#stats-h').textContent='Your Statistics';
+  $('#stats-personal').hidden=false;$('#end-panel').hidden=true;
+  $('#modal-stats').classList.remove('end-open');
   $('#rot-box').hidden=true;$('#rem-box').hidden=true;$('#stats-footer').hidden=true;
   $('#st-played').textContent=stats.played;
   $('#st-win').textContent=stats.played?Math.round(stats.wins/stats.played*100):0;
@@ -163,19 +164,44 @@ function renderStats(){
     const hl=state.status==='won'&&state.guesses.length===i+1;
     row.innerHTML=`<div class="g">${i+1}</div><div class="barw"><div class="bar${hl?' hl':''}" style="width:${Math.max(7,Math.round(n/max*100))}%">${n}</div></div>`;d.appendChild(row);});
 }
-function alltimeHTML(rows){const me=(username||'').toLowerCase();
+function alltimeHTML(rows,compact){const me=(username||'').toLowerCase();
   if(!rows.length)return '<div class="board-empty">No results yet.</div>';
+  const av=compact?20:26;
   return rows.map(r=>{const mine=r.username.toLowerCase()===me;
-    return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,false)}</div><div class="vl">${r.wins} wins<small>${r.win_pct}% · ${r.avg_guesses??'–'} avg · 🔥${r.current_streak}</small></div></div>`;}).join('');}
+    return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url,av)}${nameHTML(r.username,false)}</div><div class="vl">${r.wins} wins<small>${r.win_pct}% · ${r.avg_guesses??'–'} avg · 🔥${r.current_streak}</small></div></div>`;}).join('');}
+function dailyEndHTML(rows,live){const me=(username||'').toLowerCase();
+  const av=20;
+  const liveH=(live||[]).map(r=>`<div class="brow"><div class="rk">•</div><div class="nm">${avatarHTML(r.username,r.avatar_url,av)}${nameHTML(r.username,false)}</div><div class="vl">…</div></div>`).join('');
+  const fin=rows.map(r=>{const mine=r.username.toLowerCase()===me;
+    return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url,av)}${nameHTML(r.username,false)}</div><div class="vl">${r.won?r.guesses:'X'}/6<small>${new Date(r.finished_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</small></div></div>`;}).join('');
+  return liveH+fin||'<div class="board-empty">No results yet.</div>';}
+let endTab='all';
 async function loadEndBoard(){const list=$('#end-board-list');if(!list)return;
   list.innerHTML='<div class="board-empty">Loading…</div>';
+  const tab=endTab;
   try{if(!rotTried)await loadRot();await refreshOnline();
-    list.innerHTML=alltimeHTML(await rpc('get_alltime_board',{p_limit:50}));}catch(e){list.innerHTML='<div class="board-empty">Leaderboard unavailable right now. Check your connection.</div>';}}
+    if(tab!==endTab)return;
+    if(tab==='today'){
+      const rows=await rpc('get_today_board',{p_puzzle:puzzleNo,p_limit:50})||[];
+      if(tab!==endTab)return;
+      const names=new Set(rows.map(r=>String(r.username).toLowerCase()));
+      const live=(onlineRows||[]).filter(r=>!names.has(String(r.username).toLowerCase()));
+      list.innerHTML=dailyEndHTML(rows,live);
+    }else list.innerHTML=alltimeHTML(await rpc('get_alltime_board',{p_limit:50}),true);
+  }catch(e){if(tab===endTab)list.innerHTML='<div class="board-empty">Leaderboard unavailable right now. Check your connection.</div>';}}
 function renderEndPanel(){
-  $('#stats-h').textContent='All-time';
-  $('#stats-personal').hidden=true;$('#end-board').hidden=false;$('#stats-footer').hidden=false;
+  endTab='all';
+  $('#stats-h').hidden=true;$('#stats-personal').hidden=true;$('#end-panel').hidden=false;$('#stats-footer').hidden=false;
+  $('#modal-stats').classList.add('end-open');
+  const nm=$('#end-game-name');if(nm)nm.textContent=NAME;
+  document.querySelectorAll('.end-tab').forEach(t=>{const on=t.dataset.endtab==='all';t.classList.toggle('active',on);t.setAttribute('aria-selected',on?'true':'false');});
   renderRot();renderRem();loadEndBoard();
 }
+document.querySelectorAll('.end-tab').forEach(t=>t.onclick=()=>{
+  endTab=t.dataset.endtab;
+  document.querySelectorAll('.end-tab').forEach(x=>{const on=x.dataset.endtab===endTab;x.classList.toggle('active',on);x.setAttribute('aria-selected',on?'true':'false');});
+  loadEndBoard();
+});
 function tick(){const now=new Date(),next=new Date(today.getFullYear(),today.getMonth(),today.getDate()+1);
   let s=Math.max(0,Math.floor((next-now)/1000));if(qs.get('date'))s=Math.max(0,Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate()+1)-now)/1000));
   const p=n=>String(n).padStart(2,'0');$('#timer').textContent=`${p(Math.floor(s/3600))}:${p(Math.floor(s/60)%60)}:${p(s%60)}`;
@@ -313,7 +339,7 @@ function renderStartLabel(){const el=$('#start-label');
 async function loadRot(){
   try{rot=await rpc('get_rotation_state',{p_puzzle:puzzleNo,p_device:deviceId});}catch(e){rot=null;}
   rotTried=true;applyStart();renderTurnNotes();renderCalPoke();if(pokeFromLink())maybeShowPoke();}
-function renderTurnNotes(){if(!$('#modal-stats').hidden&&!$('#end-board').hidden)renderRot();}
+function renderTurnNotes(){if(!$('#modal-stats').hidden&&!$('#end-panel').hidden)renderRot();}
 function renderRot(){const box=$('#rot-box');
   if(!rot||rot.status!=='ok'||!rot.next_by){box.hidden=true;return;}
   box.hidden=false;
@@ -427,7 +453,7 @@ function paintPresence(){document.querySelectorAll('.pname,.uname,#pb-title').fo
   let d=el.querySelector('.on-dot');if(on&&!d){d=document.createElement('span');d.className='on-dot';d.title='Playing now';el.insertBefore(d,el.firstChild);}if(!on&&d)d.remove();});}
 if(!paintPresence._t)paintPresence._t=setInterval(async()=>{
   if(document.hidden)return;
-  const board=!$('#modal-board').hidden,day=!$('#modal-day').hidden,pb=!$('#modal-pboard').hidden,end=!$('#modal-stats').hidden&&!$('#end-board').hidden;
+  const board=!$('#modal-board').hidden,day=!$('#modal-day').hidden,pb=!$('#modal-pboard').hidden,end=!$('#modal-stats').hidden&&!$('#end-panel').hidden;
   if(!board&&!day&&!pb&&!end)return;
   const prev=[...online].sort().join();await refreshOnline();
   if([...online].sort().join()===prev){paintPresence();return;}

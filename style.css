@@ -257,6 +257,29 @@ body:not(.dark) .win-screen{background:radial-gradient(circle at 50% 40%,#e6f2e3
 .pname.picker,.uname.picker,#pb-title.picker{border:1.5px solid #d4a017;border-radius:999px;padding:1px 8px;line-height:1.4}
 .brow.me .pname.picker,.brow.me .uname.picker{border-color:#fff}
 #pb-title{display:inline-flex;align-items:center}
-.end-board{max-height:min(38vh,280px);overflow:auto;margin:4px 0 2px;border:1px solid var(--line);border-radius:8px}
+#modal-stats.end-open .modal{padding:10px 16px 14px}
+#modal-stats.end-open .modal .close{top:8px;right:10px}
+.end-head{text-align:center;margin:0 0 6px}
+.end-game{font-family:'Karnak','Georgia','Times New Roman',serif;font-weight:700;font-size:24px;letter-spacing:.01em;line-height:1.05;text-transform:uppercase}
+.end-sub{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:2px 0 0}
+.end-tabs{display:flex;gap:4px;background:var(--line);border-radius:10px;padding:3px;margin:0 0 8px}
+.end-tab{flex:1;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;font-size:13px;padding:6px 0;border-radius:8px;cursor:pointer}
+.end-tab.active{background:var(--modal-bg)}
+.end-board{--end-row-h:32px;max-height:calc(var(--end-row-h) * 8 + 2px);overflow:auto;margin:0;border:1px solid var(--line);border-radius:8px}
 .end-board .board-list{min-height:0}
+.end-board .brow{height:var(--end-row-h);box-sizing:border-box;padding:0 6px;gap:6px;font-size:13px}
+.end-board .brow .rk{width:16px;font-size:12px}
+.end-board .brow .vl{font-size:11px;white-space:nowrap}
+.end-board .brow .vl small{display:inline;margin-left:5px;font-size:11px}
 .end-board .brow:last-child{border-bottom:0}
+.end-board .nm{gap:6px}
+.end-board .uname.picker,.end-board .pname.picker{padding:0 6px}
+#modal-stats.end-open .rot-box{padding:8px 10px;margin:8px 0 0}
+#modal-stats.end-open .rot-h{font-size:13px;margin-bottom:2px}
+#modal-stats.end-open .rot-box .poke-btn,#modal-stats.end-open .rot-box .poke-done{margin-top:6px}
+#modal-stats.end-open .rem-box{margin:8px 0 0}
+#modal-stats.end-open #stats-footer{margin-top:8px}
+#modal-stats.end-open .divider{height:48px}
+#modal-stats.end-open #btn-share{height:44px;font-size:16px}
+#modal-stats.end-open #timer{font-size:26px}
+#modal-stats.end-open .countdown h2{font-size:13px;margin:0 0 2px}
