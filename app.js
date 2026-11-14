@@ -491,7 +491,7 @@ function renderCal(){
     if(n===puzzleNo){b.classList.add('today');b.disabled=false;b.setAttribute('aria-label','Play today’s challenge');
       if(h){b.classList.add(h.won?'won':'lost');b.innerHTML+=`<span class="r">${h.won?'✓ '+h.guesses+'/6':'✗ X/6'}</span>`;}
       else{b.classList.add('open');b.innerHTML+='<span class="r">PLAY</span>';}
-      b.onclick=openGame;}
+      b.onclick=state.status!=='playing'?()=>openDay(puzzleNo):openGame;}
     else if(n>=1&&n<puzzleNo){b.classList.add('past');b.disabled=false;b.setAttribute('aria-label','View puzzle #'+n);b.onclick=()=>openDay(n);if(h){b.classList.add(h.won?'won':'lost');b.innerHTML+=`<span class="r">${h.won?'✓ '+h.guesses+'/6':'✗'}</span>`;}}
     g.appendChild(b);}
 }
