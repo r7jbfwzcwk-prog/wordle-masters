@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Wordle Masters">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body class="dark">
 <div id="app">
@@ -80,6 +80,7 @@
     <div class="cal-grid cal-dow"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
     <div class="cal-grid" id="cal-days"></div>
     <p class="cal-note">One puzzle a day. Only today can be played.</p>
+    <div id="cal-poke" class="cal-poke" hidden></div>
   </div>
 </section>
 
@@ -153,6 +154,19 @@
     <p class="sub-sm">We’ll give you a nudge at 6pm if you haven’t played yet, and let you know when it’s your turn to pick the starting word.</p>
     <button class="btn-primary" id="rem-allow">Allow reminders</button>
     <button class="btn-link" id="rem-later">Not now</button>
+  </div>
+</div>
+
+
+<!-- Poke nominator popup (only after today's puzzle is finished) -->
+<div class="overlay" id="modal-poke" hidden>
+  <div class="modal rem-modal" role="dialog" aria-labelledby="poke-h">
+    <button class="close" aria-label="Close">&times;</button>
+    <div class="rem-bell">👉</div>
+    <h2 id="poke-h" class="modal-h-big">Give them a nudge?</h2>
+    <p class="sub-sm" id="poke-copy"></p>
+    <button class="btn-primary" id="poke-send">👉 Poke</button>
+    <button class="btn-link" id="poke-later">Not now</button>
   </div>
 </div>
 
@@ -242,6 +256,6 @@
 </div>
 
 <script src="words.js?v=1"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

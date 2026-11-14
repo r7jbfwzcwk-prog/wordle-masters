@@ -124,8 +124,8 @@ function submit(){
     if(won){const msgs=['Genius','Magnificent','Impressive','Splendid','Great','Phew'];
       toast(msgs[state.guesses.length-1],2000);
       r.tiles.forEach((t,i)=>setTimeout(()=>{t.classList.add('bounce');setTimeout(()=>t.classList.remove('bounce'),1000);},i*100));
-      setTimeout(()=>openModal('stats'),2400);}
-    else if(lost){toast(answer.toUpperCase(),-1);setTimeout(()=>openModal('stats'),2400);}
+      setTimeout(afterFinish,2400);}
+    else if(lost){toast(answer.toUpperCase(),-1);setTimeout(afterFinish,2400);}
   },4*300+500);
 }
 
@@ -142,7 +142,7 @@ if(stats.lastWon!=null&&stats.lastWon<puzzleNo-1&&stats.cur){stats.cur=0;save('s
 
 // ---------- modals ----------
 const anyModalOpen=()=>!!document.querySelector('.overlay:not([hidden]),.screen:not([hidden])');
-function openModal(n){closeModals();if(n==='stats')renderStats();$('#modal-'+n).hidden=false;}
+function openModal(n){closeModals();if(n==='stats')renderStats();if(n==='poke')renderPokeModal();$('#modal-'+n).hidden=false;}
 function closeModals(){document.querySelectorAll('.overlay').forEach(o=>o.hidden=true);}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(o.dataset.required)return;if(e.target===o||e.target.closest('.close'))closeModals();});});
 $('#btn-help').onclick=()=>openModal('help');
@@ -296,7 +296,7 @@ function renderStartLabel(){const el=$('#start-label');
   else el.hidden=true;}
 async function loadRot(){
   try{rot=await rpc('get_rotation_state',{p_puzzle:puzzleNo,p_device:deviceId});}catch(e){rot=null;}
-  rotTried=true;applyStart();renderTurnNotes();}
+  rotTried=true;applyStart();renderTurnNotes();renderCalPoke();}
 function renderTurnNotes(){if(!$('#modal-stats').hidden)renderRot();}
 function renderRot(){const box=$('#rot-box');
   if(!rot||rot.status!=='ok'||!rot.next_by){box.hidden=true;return;}
@@ -307,7 +307,7 @@ function renderRot(){const box=$('#rot-box');
     $('#rot-form').onsubmit=nominate;}
   else if(rot.my_turn&&!rot.next_chosen){if(state.status==='playing'){box.hidden=true;return;}box.innerHTML='<div class="rot-s">Saving your result…</div>';}
   else if(rot.my_turn)box.innerHTML='<div class="rot-s">✓ You’ve locked in tomorrow’s starting word. No peeking!</div>';
-  else box.innerHTML=`<div class="rot-s">Tomorrow’s starting word: <b>@${esc(rot.next_by)}</b>’s pick ${rot.next_chosen?'✓':'(not chosen yet)'}</div>`;}
+  else{box.innerHTML=`<div class="rot-s">Tomorrow’s starting word: <b>@${esc(rot.next_by)}</b>’s pick ${rot.next_chosen?'✓':'(not chosen yet)'}</div>`+pokeBtnHTML();bindPokeBtn(box);}}
 async function nominate(e){e.preventDefault();const w=$('#rot-input').value.trim().toLowerCase(),err=t=>{$('#rot-err').textContent=t;};
   if(!/^[a-z]{5}$/.test(w))return err('It needs to be exactly 5 letters');
   if(!VALID.has(w))return err('Not a real word');
@@ -320,6 +320,26 @@ async function nominate(e){e.preventDefault();const w=$('#rot-input').value.trim
   }catch(x){err('No connection, try again');}
   $('#rot-save')&&($('#rot-save').disabled=false);
   if(rot)await loadRot();}
+
+
+function brisbaneHour(){return Number(new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Brisbane',hour:'numeric',hourCycle:'h23'}).format(new Date()));}
+function pokeOn(){return !!(rot&&rot.status==='ok'&&rot.next_by&&!rot.next_chosen&&!rot.my_turn&&(rot.poke_open||brisbaneHour()>=19));}
+function pokeBtnHTML(){if(!pokeOn())return '';return rot.poked?'<div class="poke-done">Poked ✓</div>':`<button type="button" class="poke-btn" data-poke>👉 Poke @${esc(rot.next_by)} to pick tomorrow’s word</button>`;}
+function bindPokeBtn(root){const b=root&&root.querySelector('[data-poke]');if(b)b.onclick=()=>doPoke();}
+function renderCalPoke(){const el=$('#cal-poke');if(!el)return;if(!pokeOn()){el.hidden=true;el.innerHTML='';return;}el.hidden=false;el.innerHTML=pokeBtnHTML();bindPokeBtn(el);}
+function renderPokeModal(){if(!rot||!rot.next_by)return;$('#poke-h').textContent='Poke @'+rot.next_by+'?';$('#poke-copy').textContent='They haven’t picked tomorrow’s starting word yet. Send them a notification.';$('#poke-send').textContent='👉 Poke @'+rot.next_by;$('#poke-send').disabled=!!rot.poked;}
+function maybeShowPoke(){if(state.status==='playing'||!pokeOn()||rot.poked||load('pokeDismissed',null)===dayKey())return false;if(!$('#modal-user').hidden&&$('#modal-user').dataset.required)return false;openModal('poke');renderPokeModal();return true;}
+function afterFinish(){if(!maybeShowPoke())openModal('stats');}
+function dismissPoke(){save('pokeDismissed',dayKey());closeModals();if(state.status!=='playing')openModal('stats');}
+async function doPoke(){if(!deviceId||!pokeOn()||rot.poked)return;
+  document.querySelectorAll('[data-poke],#poke-send').forEach(b=>b.disabled=true);
+  try{const r=await fetch(POKE_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:deviceId})});
+    const d=await r.json();
+    if(d.status==='ok'||d.status==='already_poked'){if(rot)rot.poked=true;toast('Poked @'+rot.next_by+'!',1600);renderCalPoke();renderRot();if(!$('#modal-poke').hidden)dismissPoke();}
+    else if(d.status==='already_chosen'||d.status==='too_early'||d.status==='too_late'||d.status==='no_nominator'){toast(d.status==='already_chosen'?'They already picked a word':'Poke isn’t available right now',1800);await loadRot();}
+    else{toast('Couldn’t send the poke',1600);document.querySelectorAll('[data-poke],#poke-send').forEach(b=>b.disabled=false);}
+  }catch(e){toast('No connection, try again',1600);document.querySelectorAll('[data-poke],#poke-send').forEach(b=>b.disabled=false);}
+}
 
 // ---------- reminders (web push) ----------
 const VAPID_PUBLIC='BO6krdLS-R2FiMEn2uLsonpef2YWIjdgEqq25qRz1aFVhRzYvY3k1Hsu4hkMcBstAyraC0DraAItqEmeF7_0Qds';
@@ -347,6 +367,8 @@ function renderRem(){const box=$('#rem-box');if(!box)return;
   $('#rem-btn').onclick=async()=>{const r=await enablePush();toast(r==='granted'?'Reminders on! See you at 6pm 😉':'Reminders not turned on',2000);};}
 $('#rem-allow').onclick=async()=>{$('#modal-rem').hidden=true;const r=await enablePush();if(r==='granted')toast('Reminders on! See you at 6pm 😉',2000);};
 $('#rem-later').onclick=()=>{save('remDismissed',dayKey());$('#modal-rem').hidden=true;};
+$('#poke-later').onclick=dismissPoke;$('#poke-send').onclick=()=>doPoke();
+$('#modal-poke').addEventListener('click',e=>{if(e.target===$('#modal-poke')||e.target.closest('.close'))dismissPoke();});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{scope:'./'}).then(r=>{swReg=r;syncPush();}).catch(()=>{});
 if(isStandalone&&pushSupported&&Notification.permission==='default'&&load('remDismissed',null)!==dayKey())$('#modal-rem').hidden=false;
 
@@ -434,6 +456,7 @@ async function openDay(n){openModal('day');
 $('#day-list').addEventListener('click',e=>{const b=e.target.closest('.pname');const n=Number(($('#day-h').textContent.match(/\d+/)||[0])[0]);if(b&&n)viewPlayer(b.dataset.user,n,'day');});
 
 // ---------- profile photo ----------
+const POKE_FN=SB_URL+'/functions/v1/wm-poke';
 const AVATAR_FN=SB_URL+'/functions/v1/wm-avatar';
 function loadImg(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),i=new Image();i.onload=()=>{res(i);};i.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('img'));};i.src=u;});}
 async function squareJpeg(file){const img=await loadImg(file);const side=Math.min(img.naturalWidth,img.naturalHeight);
@@ -509,6 +532,7 @@ function renderCal(){
       b.onclick=state.status!=='playing'?()=>openDay(puzzleNo):openGame;}
     else if(n>=1&&n<puzzleNo){b.classList.add('past');b.disabled=false;b.setAttribute('aria-label','View puzzle #'+n);b.onclick=()=>openDay(n);if(h){b.classList.add(h.won?'won':'lost');b.innerHTML+=`<span class="r">${h.won?'✓ '+h.guesses+'/6':'✗'}</span>`;}}
     g.appendChild(b);}
+  renderCalPoke();
 }
 $('#cal-prev').onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1);renderCal();};
 $('#cal-next').onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);renderCal();};
@@ -517,7 +541,7 @@ $('#cal-back').onclick=()=>showScreen('screen-welcome');
 function openCalendar(){renderCal();showScreen('screen-cal');}
 function openGame(){showScreen(null);
   if(!load('seenHelp',false)){save('seenHelp',true);setTimeout(()=>openModal('help'),360);}
-  else if(state.status!=='playing')setTimeout(()=>openModal('stats'),500);}
+  else if(state.status!=='playing')setTimeout(()=>{if(!maybeShowPoke())openModal('stats');},500);}
 afterUserSaved=first=>{if(first)goCalendar();};
 $('#btn-start').onclick=()=>{if(!username)openUser(false);
   else if(load('nameTaken',false)){openUser(true);$('#user-err').textContent='That username is taken – please choose another';$('#user-input').classList.add('bad');afterUserSaved=()=>openCalendar();}

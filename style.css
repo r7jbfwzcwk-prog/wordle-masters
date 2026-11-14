@@ -245,3 +245,8 @@ body:not(.dark) .win-screen{background:radial-gradient(circle at 50% 40%,#e6f2e3
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
 
 .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e5484d;margin-right:6px;vertical-align:middle;animation:livepulse 1.2s infinite}@keyframes livepulse{50%{opacity:.3}}.live-h{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#818384;margin:10px 4px 4px}
+.cal-poke{text-align:center;margin:18px 8px 8px}
+.poke-btn{display:inline-block;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:16px;padding:8px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;line-height:1.3}
+.poke-btn:disabled{opacity:.7;cursor:default}
+.poke-done{font-size:13px;color:#a0a3a6;font-weight:700}
+.rot-box .poke-btn,.rot-box .poke-done{margin-top:10px}
