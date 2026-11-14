@@ -144,7 +144,7 @@ if(stats.lastWon!=null&&stats.lastWon<puzzleNo-1&&stats.cur){stats.cur=0;save('s
 
 // ---------- modals ----------
 const anyModalOpen=()=>!!document.querySelector('.overlay:not([hidden]),.screen:not([hidden])');
-function openModal(n){closeModals();if(n==='stats')renderStats();if(n==='poke')renderPokeModal();$('#modal-'+n).hidden=false;}
+function openModal(n){closeModals();if(n==='stats')renderStats();if(n==='end'){renderEndPanel();n='stats';}if(n==='poke')renderPokeModal();$('#modal-'+n).hidden=false;}
 function closeModals(){document.querySelectorAll('.overlay').forEach(o=>o.hidden=true);}
 document.querySelectorAll('.overlay').forEach(o=>{o.addEventListener('click',e=>{if(o.dataset.required)return;if(e.target===o||e.target.closest('.close'))closeModals();});});
 $('#btn-help').onclick=()=>openModal('help');
@@ -152,6 +152,9 @@ $('#btn-stats').onclick=()=>openModal('stats');
 $('#btn-settings').onclick=()=>{openModal('settings');renderCode();};
 
 function renderStats(){
+  $('#stats-h').textContent='Your Statistics';
+  $('#stats-personal').hidden=false;$('#end-board').hidden=true;
+  $('#rot-box').hidden=true;$('#rem-box').hidden=true;$('#stats-footer').hidden=true;
   $('#st-played').textContent=stats.played;
   $('#st-win').textContent=stats.played?Math.round(stats.wins/stats.played*100):0;
   $('#st-cur').textContent=stats.cur;$('#st-max').textContent=stats.max;
@@ -159,8 +162,19 @@ function renderStats(){
   stats.dist.forEach((n,i)=>{const row=document.createElement('div');row.className='drow';
     const hl=state.status==='won'&&state.guesses.length===i+1;
     row.innerHTML=`<div class="g">${i+1}</div><div class="barw"><div class="bar${hl?' hl':''}" style="width:${Math.max(7,Math.round(n/max*100))}%">${n}</div></div>`;d.appendChild(row);});
-  $('#stats-footer').hidden=state.status==='playing';
-  renderRot();renderRem();
+}
+function alltimeHTML(rows){const me=(username||'').toLowerCase();
+  if(!rows.length)return '<div class="board-empty">No results yet.</div>';
+  return rows.map(r=>{const mine=r.username.toLowerCase()===me;
+    return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,false)}</div><div class="vl">${r.wins} wins<small>${r.win_pct}% · ${r.avg_guesses??'–'} avg · 🔥${r.current_streak}</small></div></div>`;}).join('');}
+async function loadEndBoard(){const list=$('#end-board-list');if(!list)return;
+  list.innerHTML='<div class="board-empty">Loading…</div>';
+  try{if(!rotTried)await loadRot();await refreshOnline();
+    list.innerHTML=alltimeHTML(await rpc('get_alltime_board',{p_limit:50}));}catch(e){list.innerHTML='<div class="board-empty">Leaderboard unavailable right now. Check your connection.</div>';}}
+function renderEndPanel(){
+  $('#stats-h').textContent='All-time';
+  $('#stats-personal').hidden=true;$('#end-board').hidden=false;$('#stats-footer').hidden=false;
+  renderRot();renderRem();loadEndBoard();
 }
 function tick(){const now=new Date(),next=new Date(today.getFullYear(),today.getMonth(),today.getDate()+1);
   let s=Math.max(0,Math.floor((next-now)/1000));if(qs.get('date'))s=Math.max(0,Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate()+1)-now)/1000));
@@ -299,7 +313,7 @@ function renderStartLabel(){const el=$('#start-label');
 async function loadRot(){
   try{rot=await rpc('get_rotation_state',{p_puzzle:puzzleNo,p_device:deviceId});}catch(e){rot=null;}
   rotTried=true;applyStart();renderTurnNotes();renderCalPoke();if(pokeFromLink())maybeShowPoke();}
-function renderTurnNotes(){if(!$('#modal-stats').hidden)renderRot();}
+function renderTurnNotes(){if(!$('#modal-stats').hidden&&!$('#end-board').hidden)renderRot();}
 function renderRot(){const box=$('#rot-box');
   if(!rot||rot.status!=='ok'||!rot.next_by){box.hidden=true;return;}
   box.hidden=false;
@@ -336,8 +350,8 @@ function maybeShowPoke(){if(!pokeOn()||rot.poked)return false;
   if(!$('#modal-user').hidden&&$('#modal-user').dataset.required)return false;
   if(fromLink){document.querySelectorAll('.screen').forEach(sc=>sc.hidden=true);try{history.replaceState({},'',location.pathname+(location.hash||''));}catch(e){}pokeFromMsg=false;}
   openModal('poke');renderPokeModal();return true;}
-function afterFinish(){if(!maybeShowPoke())openModal('stats');}
-function dismissPoke(){save('pokeDismissed',dayKey());closeModals();if(state.status!=='playing')openModal('stats');}
+function afterFinish(){if(!maybeShowPoke())openModal('end');}
+function dismissPoke(){save('pokeDismissed',dayKey());closeModals();if(state.status!=='playing')openModal('end');}
 async function doPoke(){if(!deviceId||!pokeOn()||rot.poked)return;
   document.querySelectorAll('[data-poke],#poke-send').forEach(b=>b.disabled=true);
   try{const r=await fetch(POKE_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:deviceId})});
@@ -413,13 +427,13 @@ function paintPresence(){document.querySelectorAll('.pname,.uname,#pb-title').fo
   let d=el.querySelector('.on-dot');if(on&&!d){d=document.createElement('span');d.className='on-dot';d.title='Playing now';el.insertBefore(d,el.firstChild);}if(!on&&d)d.remove();});}
 if(!paintPresence._t)paintPresence._t=setInterval(async()=>{
   if(document.hidden)return;
-  const board=!$('#modal-board').hidden,day=!$('#modal-day').hidden,pb=!$('#modal-pboard').hidden;
-  if(!board&&!day&&!pb)return;
+  const board=!$('#modal-board').hidden,day=!$('#modal-day').hidden,pb=!$('#modal-pboard').hidden,end=!$('#modal-stats').hidden&&!$('#end-board').hidden;
+  if(!board&&!day&&!pb&&!end)return;
   const prev=[...online].sort().join();await refreshOnline();
   if([...online].sort().join()===prev){paintPresence();return;}
   if(board)loadBoard();
   if(day){const n=Number(($('#day-h').textContent.match(/\d+/)||[0])[0]);if(n)openDay(n);}
-  if(pb)paintPresence();
+  if(pb||end)paintPresence();
 },8000);
 async function loadBoard(){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===boardTab));
@@ -434,10 +448,8 @@ async function loadBoard(){
     const live=tab==='today'?onlineRows.filter(r=>!fin.has(r.username.toLowerCase())):[];
     if(!rows.length&&!live.length){list.innerHTML='<div class="board-empty">'+(tab==='today'?'No results yet today. Be the first!':'No results yet.')+'</div>';return;}
     const liveHtml=live.length?'<div class="live-h"><span class="on-dot"></span>Playing now</div>'+live.map(r=>`<div class="brow"><div class="rk">•</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,true)}</div><div class="vl">…</div></div>`).join('')+(rows.length?'<div class="live-h">Finished</div>':'') : '';
-    list.innerHTML=liveHtml+rows.map(r=>{const mine=r.username.toLowerCase()===me;
-      const val=tab==='today'?`${r.won?r.guesses:'X'}/6<small>${new Date(r.finished_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</small>`
-        :`${r.wins} wins<small>${r.win_pct}% · ${r.avg_guesses??'–'} avg · 🔥${r.current_streak}</small>`;
-      return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,tab==='today')}${tab==='today'&&r.hard_mode?'<span class="hm">★ hard</span>':''}</div><div class="vl">${val}</div></div>`;}).join('');
+    list.innerHTML=liveHtml+(tab==='today'?rows.map(r=>{const mine=r.username.toLowerCase()===me;
+      return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,true)}${r.hard_mode?'<span class="hm">★ hard</span>':''}</div><div class="vl">${r.won?r.guesses:'X'}/6<small>${new Date(r.finished_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</small></div></div>`;}).join(''):alltimeHTML(rows));
   }catch(e){if(tab===boardTab)list.innerHTML='<div class="board-empty">Leaderboard unavailable right now. Check your connection.</div>';}
 }
 $('#btn-board').onclick=()=>{openModal('board');loadBoard();};
@@ -578,7 +590,7 @@ $('#cal-back').onclick=()=>{if(calFromGame)openGame();else showScreen('screen-we
 function openCalendar(){renderCal();showScreen('screen-cal');}
 function openGame(){showScreen(null);
   if(!load('seenHelp',false)){save('seenHelp',true);setTimeout(()=>openModal('help'),360);}
-  else if(state.status!=='playing')setTimeout(()=>{if(!maybeShowPoke())openModal('stats');},500);}
+  else if(state.status!=='playing')setTimeout(()=>{if(!maybeShowPoke())openModal('end');},500);}
 afterUserSaved=first=>{if(pokeFromLink()&&maybeShowPoke())return;if(first)goCalendar();};
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.poke){pokeFromMsg=true;maybeShowPoke();}});
 $('#btn-start').onclick=()=>{if(!username)openUser(false);

@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Wordle Masters">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body class="dark">
 <div id="app">
@@ -29,7 +29,7 @@
       <button class="icon" id="btn-board" aria-label="Leaderboard" title="Leaderboard">
         <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
       </button>
-      <button class="icon" id="btn-stats" aria-label="Statistics" title="Statistics">
+      <button class="icon" id="btn-stats" aria-label="Your Statistics" title="Your Statistics">
         <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M16,11V3H8v6H2v12h20V11H16z M10,5h4v14h-4V5z M4,11h4v8H4V11z M20,19h-4v-6h4V19z"/></svg>
       </button>
       <button class="icon" id="btn-settings" aria-label="Settings" title="Settings">
@@ -197,6 +197,7 @@
   <div class="modal" role="dialog" aria-labelledby="stats-h">
     <button class="close" aria-label="Close">&times;</button>
     <h2 id="stats-h">Statistics</h2>
+    <div id="stats-personal">
     <div class="stats-user" id="stats-user"></div>
     <div class="stats-row">
       <div class="stat"><div class="num" id="st-played">0</div><div class="lbl">Played</div></div>
@@ -206,6 +207,8 @@
     </div>
     <h2>Guess Distribution</h2>
     <div id="dist"></div>
+    </div>
+    <div id="end-board" class="end-board" hidden><div id="end-board-list" class="board-list"></div></div>
     <div id="rot-box" class="rot-box" hidden></div>
     <div id="rem-box" class="rem-box" hidden></div>
     <div id="stats-footer" hidden>
@@ -256,6 +259,6 @@
 </div>
 
 <script src="words.js?v=1"></script>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

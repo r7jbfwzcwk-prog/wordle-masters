@@ -257,3 +257,6 @@ body:not(.dark) .win-screen{background:radial-gradient(circle at 50% 40%,#e6f2e3
 .pname.picker,.uname.picker,#pb-title.picker{border:1.5px solid #d4a017;border-radius:999px;padding:1px 8px;line-height:1.4}
 .brow.me .pname.picker,.brow.me .uname.picker{border-color:#fff}
 #pb-title{display:inline-flex;align-items:center}
+.end-board{max-height:min(38vh,280px);overflow:auto;margin:4px 0 2px;border:1px solid var(--line);border-radius:8px}
+.end-board .board-list{min-height:0}
+.end-board .brow:last-child{border-bottom:0}
