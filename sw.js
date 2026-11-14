@@ -14,7 +14,13 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || self.registration.scope;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
-    for (const c of cs) if (c.url.startsWith(self.registration.scope) && 'focus' in c) return c.focus();
+    for (const c of cs) {
+      if (c.url.startsWith(self.registration.scope) && 'focus' in c) {
+        if (typeof c.navigate === 'function') return c.navigate(url).then(w => (w || c).focus());
+        c.postMessage({ poke: 1 });
+        return c.focus();
+      }
+    }
     return self.clients.openWindow(url);
   }));
 });

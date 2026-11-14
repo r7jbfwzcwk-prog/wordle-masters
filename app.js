@@ -91,6 +91,8 @@ async function pushLive(){if(!username||!load('userSynced',false)||state.status!
   if(liveBusy){liveDirty=true;return;}liveBusy=true;
   try{await rpc('save_progress',{p_device:deviceId,p_puzzle:state.puzzle,p_words:state.guesses.slice(0,5),p_typing:current});}catch(e){}
   liveBusy=false;if(liveDirty){liveDirty=false;pushLive();}}
+if(!pushLive._beat){pushLive._beat=setInterval(()=>{if(document.hidden||state.status!=='playing')return;if(document.querySelector('.screen:not([hidden])'))return;pushLive();},20000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.status==='playing')pushLive();});}
 function renderCurrent(){updateEnter();pushLive();const r=rows[rowIdx()];if(!r)return;
   r.tiles.forEach((t,i)=>{const ch=current[i]||'';if(t.textContent!==ch){t.textContent=ch;t.dataset.state=ch?'tbd':'empty';}});}
 
@@ -296,7 +298,7 @@ function renderStartLabel(){const el=$('#start-label');
   else el.hidden=true;}
 async function loadRot(){
   try{rot=await rpc('get_rotation_state',{p_puzzle:puzzleNo,p_device:deviceId});}catch(e){rot=null;}
-  rotTried=true;applyStart();renderTurnNotes();renderCalPoke();}
+  rotTried=true;applyStart();renderTurnNotes();renderCalPoke();if(pokeFromLink())maybeShowPoke();}
 function renderTurnNotes(){if(!$('#modal-stats').hidden)renderRot();}
 function renderRot(){const box=$('#rot-box');
   if(!rot||rot.status!=='ok'||!rot.next_by){box.hidden=true;return;}
@@ -328,7 +330,12 @@ function pokeBtnHTML(){if(!pokeOn())return '';return rot.poked?'<div class="poke
 function bindPokeBtn(root){const b=root&&root.querySelector('[data-poke]');if(b)b.onclick=()=>doPoke();}
 function renderCalPoke(){const el=$('#cal-poke');if(!el)return;if(!pokeOn()){el.hidden=true;el.innerHTML='';return;}el.hidden=false;el.innerHTML=pokeBtnHTML();bindPokeBtn(el);}
 function renderPokeModal(){if(!rot||!rot.next_by)return;$('#poke-h').textContent='Poke @'+rot.next_by+'?';$('#poke-copy').textContent='They haven’t picked tomorrow’s starting word yet. Send them a notification.';$('#poke-send').textContent='👉 Poke @'+rot.next_by;$('#poke-send').disabled=!!rot.poked;}
-function maybeShowPoke(){if(state.status==='playing'||!pokeOn()||rot.poked||load('pokeDismissed',null)===dayKey())return false;if(!$('#modal-user').hidden&&$('#modal-user').dataset.required)return false;openModal('poke');renderPokeModal();return true;}
+function maybeShowPoke(){if(!pokeOn()||rot.poked)return false;
+  const fromLink=pokeFromLink();
+  if(!fromLink&&(state.status==='playing'||load('pokeDismissed',null)===dayKey()))return false;
+  if(!$('#modal-user').hidden&&$('#modal-user').dataset.required)return false;
+  if(fromLink){document.querySelectorAll('.screen').forEach(sc=>sc.hidden=true);try{history.replaceState({},'',location.pathname+(location.hash||''));}catch(e){}pokeFromMsg=false;}
+  openModal('poke');renderPokeModal();return true;}
 function afterFinish(){if(!maybeShowPoke())openModal('stats');}
 function dismissPoke(){save('pokeDismissed',dayKey());closeModals();if(state.status!=='playing')openModal('stats');}
 async function doPoke(){if(!deviceId||!pokeOn()||rot.poked)return;
@@ -391,19 +398,46 @@ async function syncUser(){
 // ---------- leaderboard modal ----------
 let boardTab='today';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pokeFromLink=()=>qs.get('poke')==='1'||!!pokeFromMsg;
+let pokeFromMsg=false,online=new Set(),onlineRows=[];
+const isOnline=n=>online.has(String(n||'').toLowerCase());
+const isPicker=n=>!!(rot&&rot.next_by&&String(n||'').toLowerCase()===String(rot.next_by).toLowerCase());
+function nameHTML(name,btn){const on=isOnline(name),pick=isPicker(name);
+  const inner=(on?'<span class="on-dot" title="Playing now"></span>':'')+'@'+esc(name);
+  const cls=(btn?'pname':'uname')+(on?' on':'')+(pick?' picker':'');
+  return btn?`<button type="button" class="${cls}" data-user="${esc(name)}">${inner}</button>`:`<span class="${cls}">${inner}</span>`;}
+async function refreshOnline(){try{onlineRows=await rpc('get_online',{p_puzzle:puzzleNo})||[];online=new Set(onlineRows.map(r=>String(r.username).toLowerCase()));}catch(e){onlineRows=[];}}
+function paintPresence(){document.querySelectorAll('.pname,.uname,#pb-title').forEach(el=>{
+  const name=(el.dataset.user||el.textContent.replace(/^@/,'')).trim();if(!name)return;el.dataset.user=name;
+  const on=isOnline(name);el.classList.toggle('on',on);el.classList.toggle('picker',isPicker(name));
+  let d=el.querySelector('.on-dot');if(on&&!d){d=document.createElement('span');d.className='on-dot';d.title='Playing now';el.insertBefore(d,el.firstChild);}if(!on&&d)d.remove();});}
+if(!paintPresence._t)paintPresence._t=setInterval(async()=>{
+  if(document.hidden)return;
+  const board=!$('#modal-board').hidden,day=!$('#modal-day').hidden,pb=!$('#modal-pboard').hidden;
+  if(!board&&!day&&!pb)return;
+  const prev=[...online].sort().join();await refreshOnline();
+  if([...online].sort().join()===prev){paintPresence();return;}
+  if(board)loadBoard();
+  if(day){const n=Number(($('#day-h').textContent.match(/\d+/)||[0])[0]);if(n)openDay(n);}
+  if(pb)paintPresence();
+},8000);
 async function loadBoard(){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===boardTab));
   const list=$('#board-list'),sub=$('#board-sub');list.innerHTML='<div class="board-empty">Loading…</div>';
   sub.textContent=boardTab==='today'?`Puzzle #${puzzleNo} · fewest guesses, then earliest finish`:'Most wins, then win %, then avg guesses';
   const tab=boardTab;
-  try{const rows=tab==='today'?await rpc('get_today_board',{p_puzzle:puzzleNo,p_limit:50}):await rpc('get_alltime_board',{p_limit:50});
+  try{if(!rotTried)await loadRot();if(tab==='today')await refreshOnline();
+    const rows=tab==='today'?await rpc('get_today_board',{p_puzzle:puzzleNo,p_limit:50}):await rpc('get_alltime_board',{p_limit:50});
     if(tab!==boardTab)return;
-    if(!rows.length){list.innerHTML='<div class="board-empty">'+(tab==='today'?'No results yet today. Be the first!':'No results yet.')+'</div>';return;}
     const me=(username||'').toLowerCase();
-    list.innerHTML=rows.map(r=>{const mine=r.username.toLowerCase()===me;
+    const fin=new Set(rows.map(r=>r.username.toLowerCase()));
+    const live=tab==='today'?onlineRows.filter(r=>!fin.has(r.username.toLowerCase())):[];
+    if(!rows.length&&!live.length){list.innerHTML='<div class="board-empty">'+(tab==='today'?'No results yet today. Be the first!':'No results yet.')+'</div>';return;}
+    const liveHtml=live.length?'<div class="live-h"><span class="on-dot"></span>Playing now</div>'+live.map(r=>`<div class="brow"><div class="rk">•</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,true)}</div><div class="vl">…</div></div>`).join('')+(rows.length?'<div class="live-h">Finished</div>':'') : '';
+    list.innerHTML=liveHtml+rows.map(r=>{const mine=r.username.toLowerCase()===me;
       const val=tab==='today'?`${r.won?r.guesses:'X'}/6<small>${new Date(r.finished_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</small>`
         :`${r.wins} wins<small>${r.win_pct}% · ${r.avg_guesses??'–'} avg · 🔥${r.current_streak}</small>`;
-      return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${tab==='today'?`<button class="pname" data-user="${esc(r.username)}">@${esc(r.username)}</button>`:'<span class="uname">@'+esc(r.username)+'</span>'}${tab==='today'&&r.hard_mode?'<span class="hm">★ hard</span>':''}</div><div class="vl">${val}</div></div>`;}).join('');
+      return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,tab==='today')}${tab==='today'&&r.hard_mode?'<span class="hm">★ hard</span>':''}</div><div class="vl">${val}</div></div>`;}).join('');
   }catch(e){if(tab===boardTab)list.innerHTML='<div class="board-empty">Leaderboard unavailable right now. Check your connection.</div>';}
 }
 $('#btn-board').onclick=()=>{openModal('board');loadBoard();};
@@ -411,12 +445,13 @@ $('#btn-board').onclick=()=>{openModal('board');loadBoard();};
 $('#board-list').addEventListener('click',e=>{const b=e.target.closest('.pname');if(b&&boardTab==='today')viewPlayer(b.dataset.user);});
 let pbFrom='board',pbPuzzle=0;
 async function viewPlayer(name,p=puzzleNo,from='board'){pbFrom=from;pbPuzzle=p;const tok=++pbTok;
-  openModal('pboard');$('#pb-title').textContent='@'+name;$('#pb-result').textContent='';$('#pb-av').innerHTML='';const grid=$('#pb-grid');
+  openModal('pboard');$('#pb-title').dataset.user=name;$('#pb-title').textContent='@'+name;paintPresence();$('#pb-result').textContent='';$('#pb-av').innerHTML='';const grid=$('#pb-grid');
   $('#pb-back').innerHTML=from==='day'?'&#8249; Puzzle #'+p:'&#8249; Leaderboard';
   const msg=t=>{grid.innerHTML=`<div class="board-empty">${t}</div>`;};
   if(p>=puzzleNo&&state.status==='playing')return msg("Finish today's puzzle to see everyone's guesses");
   msg('Loading…');
-  try{const r=await rpc('get_player_board',{p_viewer:deviceId,p_username:name,p_puzzle:p});
+  try{if(p===puzzleNo)await refreshOnline();paintPresence();
+    const r=await rpc('get_player_board',{p_viewer:deviceId,p_username:name,p_puzzle:p});
     if(r.status==='locked')return msg("Finish today's puzzle to see everyone's guesses");
     if(r.status==='ok')$('#pb-av').innerHTML=avatarHTML(r.username,r.avatar_url,56);
     if(r.status!=='ok'||!r.words)return msg(r.status==='ok'?`${r.won?r.guesses:'X'}/6. This board wasn’t saved.`:'Board not available.');
@@ -448,9 +483,10 @@ async function openDay(n){openModal('day');
     else if(d.start_status==='skipped'){const prev=d.prev_word||(n-1>=2?fallbackWord(n-1,null):null);st.innerHTML=`Random starting word <b>${fallbackWord(n,prev).toUpperCase()}</b> (@${esc(d.start_by)} skipped)`;}
     else st.textContent=n<2?'No starting word this day':'';
     let live=[];if(n>=puzzleNo&&state.status!=='playing'){try{live=await rpc('get_live_board',{p_viewer:deviceId,p_puzzle:n});}catch(e){}}
+    if(n===puzzleNo){if(!rotTried)await loadRot();await refreshOnline();}
     if(!rows.length&&!live.length){list.innerHTML='<div class="board-empty">Nobody played this day</div>';return;}
     const me=(username||'').toLowerCase();
-    list.innerHTML=(live.length?'<div class="live-h"><span class="live-dot"></span>Playing now · tap to watch</div>'+live.map(r=>`<div class="brow"><div class="rk">•</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}<button class="pname" data-user="${esc(r.username)}">@${esc(r.username)}</button></div><div class="vl">${r.guesses}/6…</div></div>`).join('')+(rows.length?'<div class="live-h">Finished</div>':''):'')+rows.map(r=>`<div class="brow${r.username.toLowerCase()===me?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}<button class="pname" data-user="${esc(r.username)}">@${esc(r.username)}</button>${r.hard_mode?'<span class="hm">★</span>':''}</div><div class="vl">${r.won?r.guesses:'X'}/6</div></div>`).join('');
+    list.innerHTML=(live.length?'<div class="live-h"><span class="live-dot"></span>Playing now · tap to watch</div>'+live.map(r=>`<div class="brow"><div class="rk">•</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,true)}</div><div class="vl">${r.guesses}/6…</div></div>`).join('')+(rows.length?'<div class="live-h">Finished</div>':''):'')+rows.map(r=>`<div class="brow${r.username.toLowerCase()===me?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,true)}${r.hard_mode?'<span class="hm">★</span>':''}</div><div class="vl">${r.won?r.guesses:'X'}/6</div></div>`).join('');
   }catch(e){list.innerHTML='<div class="board-empty">Couldn’t load this day. Check your connection.</div>';}
 }
 $('#day-list').addEventListener('click',e=>{const b=e.target.closest('.pname');const n=Number(($('#day-h').textContent.match(/\d+/)||[0])[0]);if(b&&n)viewPlayer(b.dataset.user,n,'day');});
@@ -488,7 +524,8 @@ async function maybeSplash(){
   const s=$('#screen-win');s.classList.remove('leaving');s.hidden=false;
   await new Promise(res=>{let done=false;const fin=()=>{if(done)return;done=true;s.onclick=null;res();};s.onclick=fin;setTimeout(fin,4000);});
 }
-async function goCalendar(){await maybeSplash();openCalendar();}
+let calFromGame=false;
+async function goCalendar(){calFromGame=false;await maybeSplash();openCalendar();}
 
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{boardTab=t.dataset.tab;loadBoard();});
 
@@ -536,13 +573,14 @@ function renderCal(){
 }
 $('#cal-prev').onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1);renderCal();};
 $('#cal-next').onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);renderCal();};
-$('#btn-cal').onclick=()=>openCalendar();
-$('#cal-back').onclick=()=>showScreen('screen-welcome');
+$('#btn-cal').onclick=()=>{calFromGame=true;openCalendar();};
+$('#cal-back').onclick=()=>{if(calFromGame)openGame();else showScreen('screen-welcome');};
 function openCalendar(){renderCal();showScreen('screen-cal');}
 function openGame(){showScreen(null);
   if(!load('seenHelp',false)){save('seenHelp',true);setTimeout(()=>openModal('help'),360);}
   else if(state.status!=='playing')setTimeout(()=>{if(!maybeShowPoke())openModal('stats');},500);}
-afterUserSaved=first=>{if(first)goCalendar();};
+afterUserSaved=first=>{if(pokeFromLink()&&maybeShowPoke())return;if(first)goCalendar();};
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.poke){pokeFromMsg=true;maybeShowPoke();}});
 $('#btn-start').onclick=()=>{if(!username)openUser(false);
   else if(load('nameTaken',false)){openUser(true);$('#user-err').textContent='That username is taken – please choose another';$('#user-input').classList.add('bad');afterUserSaved=()=>openCalendar();}
   else goCalendar();};
