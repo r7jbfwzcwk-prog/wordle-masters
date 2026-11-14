@@ -497,6 +497,7 @@ function renderCal(){
 }
 $('#cal-prev').onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1);renderCal();};
 $('#cal-next').onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);renderCal();};
+$('#btn-cal').onclick=()=>openCalendar();
 $('#cal-back').onclick=()=>showScreen('screen-welcome');
 function openCalendar(){renderCal();showScreen('screen-cal');}
 function openGame(){showScreen(null);
