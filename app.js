@@ -86,7 +86,12 @@ function colorKeys(guess,res){for(let i=0;i<5;i++){const k=keyEls[guess[i]];if(!
 let current='',busy=false;
 const rowIdx=()=>state.guesses.length;
 function updateEnter(){const k=kb.querySelector('.key[data-key=enter]');if(k)k.classList.toggle('ready',state.status==='playing'&&current.length===5&&VALID.has(current));}
-function renderCurrent(){updateEnter();const r=rows[rowIdx()];if(!r)return;
+let liveBusy=false,liveDirty=false;
+async function pushLive(){if(!username||!load('userSynced',false)||state.status!=='playing')return;
+  if(liveBusy){liveDirty=true;return;}liveBusy=true;
+  try{await rpc('save_progress',{p_device:deviceId,p_puzzle:state.puzzle,p_words:state.guesses.slice(0,5),p_typing:current});}catch(e){}
+  liveBusy=false;if(liveDirty){liveDirty=false;pushLive();}}
+function renderCurrent(){updateEnter();pushLive();const r=rows[rowIdx()];if(!r)return;
   r.tiles.forEach((t,i)=>{const ch=current[i]||'';if(t.textContent!==ch){t.textContent=ch;t.dataset.state=ch?'tbd':'empty';}});}
 
 function restore(){state.guesses.forEach((g,ri)=>{const res=score(g,answer);rows[ri].tiles.forEach((t,i)=>{t.textContent=g[i];t.dataset.state=res[i];});colorKeys(g,res);});}
@@ -108,6 +113,7 @@ function submit(){
   const guess=current,res=score(guess,answer),r=rows[rowIdx()];
   busy=true;current='';updateEnter();
   state.guesses.push(guess);
+  if(state.guesses.length<6&&guess!==answer)pushLive();
   const won=guess===answer,lost=!won&&state.guesses.length===6;
   if(won||lost){state.status=won?'won':'lost';updateStats(won);state.pendingSubmit=true;}
   save('state',state);if(state.pendingSubmit)submitResult();
@@ -280,7 +286,7 @@ const startPending=()=>puzzleNo>=2&&!rotTried&&state.guesses.length===0;
 function applyStart(){
   const w=effectiveStart();
   if(w&&state.status==='playing'&&state.guesses.length===0&&!current){
-    state.guesses.push(w);state.startWord=w;state.startBy=rot.start_by;state.startSkipped=rot.start_status==='skipped';save('state',state);
+    state.guesses.push(w);state.startWord=w;state.startBy=rot.start_by;state.startSkipped=rot.start_status==='skipped';save('state',state);pushLive();
     const res=score(w,answer);rows[0].tiles.forEach((t,i)=>{t.textContent=w[i];setTimeout(()=>{t.classList.add('flip-in');
       setTimeout(()=>{t.classList.remove('flip-in');t.dataset.state=res[i];t.classList.add('flip-out');setTimeout(()=>t.classList.remove('flip-out'),250);},250);},i*200);});
     setTimeout(()=>colorKeys(w,res),1300);}
@@ -382,7 +388,7 @@ $('#btn-board').onclick=()=>{openModal('board');loadBoard();};
 // ---------- view another player's board (today only, after you finish) ----------
 $('#board-list').addEventListener('click',e=>{const b=e.target.closest('.pname');if(b&&boardTab==='today')viewPlayer(b.dataset.user);});
 let pbFrom='board',pbPuzzle=0;
-async function viewPlayer(name,p=puzzleNo,from='board'){pbFrom=from;pbPuzzle=p;
+async function viewPlayer(name,p=puzzleNo,from='board'){pbFrom=from;pbPuzzle=p;const tok=++pbTok;
   openModal('pboard');$('#pb-title').textContent='@'+name;$('#pb-result').textContent='';$('#pb-av').innerHTML='';const grid=$('#pb-grid');
   $('#pb-back').innerHTML=from==='day'?'&#8249; Puzzle #'+p:'&#8249; Leaderboard';
   const msg=t=>{grid.innerHTML=`<div class="board-empty">${t}</div>`;};
@@ -392,13 +398,21 @@ async function viewPlayer(name,p=puzzleNo,from='board'){pbFrom=from;pbPuzzle=p;
     if(r.status==='locked')return msg("Finish today's puzzle to see everyone's guesses");
     if(r.status==='ok')$('#pb-av').innerHTML=avatarHTML(r.username,r.avatar_url,56);
     if(r.status!=='ok'||!r.words)return msg(r.status==='ok'?`${r.won?r.guesses:'X'}/6. This board wasn’t saved.`:'Board not available.');
-    const ans=answerFor(p);
-    $('#pb-result').textContent=(r.won?r.guesses:'X')+'/6'+(r.hard_mode?' ★ hard':'');
-    let html='';for(let i=0;i<6;i++){const w=r.words[i];const res=w?score(w,ans):null;
-      html+='<div class="pb-row">'+[0,1,2,3,4].map(j=>`<div class="tile" data-state="${w?res[j]:'empty'}">${w?w[j]:''}</div>`).join('')+'</div>';}
-    grid.innerHTML=html;
+    renderPB(r,p);
+    if(r.in_progress)livePoll(name,p,tok);
   }catch(e){msg('Couldn’t load this board. Check your connection.');}
 }
+let pbTok=0;
+function renderPB(r,p){const ans=answerFor(p),words=r.words||[];
+  $('#pb-result').innerHTML=r.in_progress?'<span class="live-dot"></span>LIVE · '+words.length+'/6':(r.won?r.guesses:'X')+'/6'+(r.hard_mode?' ★ hard':'');
+  let html='';for(let i=0;i<6;i++){const w=words[i];const res=w?score(w,ans):null;const ty=(r.in_progress&&i===words.length)?(r.typing||''):'';
+    html+='<div class="pb-row">'+[0,1,2,3,4].map(j=>w?`<div class="tile" data-state="${res[j]}">${w[j]}</div>`:`<div class="tile" data-state="${ty[j]?'tbd':'empty'}">${ty[j]||''}</div>`).join('')+'</div>';}
+  $('#pb-grid').innerHTML=html;}
+async function livePoll(name,p,tok){
+  while(tok===pbTok&&!$('#modal-pboard').hidden){await new Promise(r=>setTimeout(r,800));
+    if(tok!==pbTok||$('#modal-pboard').hidden||document.hidden)continue;
+    try{const r=await rpc('get_player_board',{p_viewer:deviceId,p_username:name,p_puzzle:p});
+      if(tok!==pbTok)return;if(r.status==='ok'){renderPB(r,p);if(!r.in_progress)return;}}catch(e){}}}
 $('#pb-back').onclick=()=>{if(pbFrom==='day')openDay(pbPuzzle);else{openModal('board');loadBoard();}};
 
 // ---------- past days (read-only) ----------
@@ -411,9 +425,10 @@ async function openDay(n){openModal('day');
     if(d.start_status==='chosen')st.innerHTML=`Starting word <b>${esc(d.start_word.toUpperCase())}</b> chosen by <b>@${esc(d.start_by)}</b>`;
     else if(d.start_status==='skipped'){const prev=d.prev_word||(n-1>=2?fallbackWord(n-1,null):null);st.innerHTML=`Random starting word <b>${fallbackWord(n,prev).toUpperCase()}</b> (@${esc(d.start_by)} skipped)`;}
     else st.textContent=n<2?'No starting word this day':'';
-    if(!rows.length){list.innerHTML='<div class="board-empty">Nobody played this day</div>';return;}
+    let live=[];if(n>=puzzleNo&&state.status!=='playing'){try{live=await rpc('get_live_board',{p_viewer:deviceId,p_puzzle:n});}catch(e){}}
+    if(!rows.length&&!live.length){list.innerHTML='<div class="board-empty">Nobody played this day</div>';return;}
     const me=(username||'').toLowerCase();
-    list.innerHTML=rows.map(r=>`<div class="brow${r.username.toLowerCase()===me?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}<button class="pname" data-user="${esc(r.username)}">@${esc(r.username)}</button>${r.hard_mode?'<span class="hm">★</span>':''}</div><div class="vl">${r.won?r.guesses:'X'}/6</div></div>`).join('');
+    list.innerHTML=(live.length?'<div class="live-h"><span class="live-dot"></span>Playing now · tap to watch</div>'+live.map(r=>`<div class="brow"><div class="rk">•</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}<button class="pname" data-user="${esc(r.username)}">@${esc(r.username)}</button></div><div class="vl">${r.guesses}/6…</div></div>`).join('')+(rows.length?'<div class="live-h">Finished</div>':''):'')+rows.map(r=>`<div class="brow${r.username.toLowerCase()===me?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}<button class="pname" data-user="${esc(r.username)}">@${esc(r.username)}</button>${r.hard_mode?'<span class="hm">★</span>':''}</div><div class="vl">${r.won?r.guesses:'X'}/6</div></div>`).join('');
   }catch(e){list.innerHTML='<div class="board-empty">Couldn’t load this day. Check your connection.</div>';}
 }
 $('#day-list').addEventListener('click',e=>{const b=e.target.closest('.pname');const n=Number(($('#day-h').textContent.match(/\d+/)||[0])[0]);if(b&&n)viewPlayer(b.dataset.user,n,'day');});
