@@ -334,8 +334,13 @@ function applyStart(){
     setTimeout(()=>colorKeys(w,res),1300);}
   renderStartLabel();}
 function renderStartLabel(){const el=$('#start-label');
-  if(state.startWord&&state.startBy){el.innerHTML=state.startSkipped?`@${esc(state.startBy)} skipped their turn, so today’s starting word is random 🎲`:`Starting word chosen by <b>@${esc(state.startBy)}</b>`;el.hidden=false;}
-  else el.hidden=true;}
+  let today='';
+  if(state.startWord&&state.startBy)today=state.startSkipped?`@${esc(state.startBy)} skipped their turn, so today’s starting word is random 🎲`:`Starting word chosen by <b>@${esc(state.startBy)}</b>`;
+  let next='';
+  if(rot&&rot.status==='ok'&&rot.next_by){const mine=!!(rot.my_turn||(username&&String(rot.next_by).toLowerCase()===String(username).toLowerCase()));
+    next=mine?'Your pick tomorrow':`Tomorrow’s word: <b>@${esc(rot.next_by)}</b>’s pick`;}
+  if(!today&&!next){el.hidden=true;el.innerHTML='';return;}
+  el.innerHTML=today+(next?`<div class="next-pick">${next}</div>`:'');el.hidden=false;}
 async function loadRot(){
   try{rot=await rpc('get_rotation_state',{p_puzzle:puzzleNo,p_device:deviceId});}catch(e){rot=null;}
   rotTried=true;applyStart();renderTurnNotes();renderCalPoke();if(pokeFromLink())maybeShowPoke();}
