@@ -439,24 +439,30 @@ async function syncUser(){
 let boardTab='today';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pokeFromLink=()=>qs.get('poke')==='1'||!!pokeFromMsg;
-let pokeFromMsg=false,online=new Set(),onlineRows=[];
-const isOnline=n=>online.has(String(n||'').toLowerCase());
+let pokeFromMsg=false,onlineRows=[],onlineMap=new Map();
+const presenceOf=n=>onlineMap.get(String(n||'').toLowerCase())||'';
 const isPicker=n=>!!(rot&&rot.next_by&&String(n||'').toLowerCase()===String(rot.next_by).toLowerCase());
-function nameHTML(name,btn){const on=isOnline(name),pick=isPicker(name);
-  const inner=(on?'<span class="on-dot" title="Playing now"></span>':'')+'@'+esc(name);
-  const cls=(btn?'pname':'uname')+(on?' on':'')+(pick?' picker':'');
+const presenceSig=()=>[...onlineMap.entries()].map(([n,s])=>n+':'+s).sort().join();
+function dotHTML(st){return st==='live'?'<span class="on-dot" title="Live now"></span>':st==='idle'?'<span class="on-dot idle" title="Started, not finished"></span>':'';}
+function nameHTML(name,btn){const st=presenceOf(name),pick=isPicker(name);
+  const inner=dotHTML(st)+'@'+esc(name);
+  const cls=(btn?'pname':'uname')+(st?' '+st:'')+(pick?' picker':'');
   return btn?`<button type="button" class="${cls}" data-user="${esc(name)}">${inner}</button>`:`<span class="${cls}">${inner}</span>`;}
-async function refreshOnline(){try{onlineRows=await rpc('get_online',{p_puzzle:puzzleNo})||[];online=new Set(onlineRows.map(r=>String(r.username).toLowerCase()));}catch(e){onlineRows=[];}}
+async function refreshOnline(){try{onlineRows=await rpc('get_online',{p_puzzle:puzzleNo})||[];
+  onlineMap=new Map(onlineRows.map(r=>[String(r.username).toLowerCase(),r.status==='idle'?'idle':'live']));}catch(e){onlineRows=[];onlineMap=new Map();}}
 function paintPresence(){document.querySelectorAll('.pname,.uname,#pb-title').forEach(el=>{
   const name=(el.dataset.user||el.textContent.replace(/^@/,'')).trim();if(!name)return;el.dataset.user=name;
-  const on=isOnline(name);el.classList.toggle('on',on);el.classList.toggle('picker',isPicker(name));
-  let d=el.querySelector('.on-dot');if(on&&!d){d=document.createElement('span');d.className='on-dot';d.title='Playing now';el.insertBefore(d,el.firstChild);}if(!on&&d)d.remove();});}
+  const st=presenceOf(name);el.classList.toggle('live',st==='live');el.classList.toggle('idle',st==='idle');el.classList.toggle('picker',isPicker(name));
+  let d=el.querySelector('.on-dot');
+  if(!st){if(d)d.remove();return;}
+  if(!d){d=document.createElement('span');el.insertBefore(d,el.firstChild);}
+  d.className='on-dot'+(st==='idle'?' idle':'');d.title=st==='idle'?'Started, not finished':'Live now';});}
 if(!paintPresence._t)paintPresence._t=setInterval(async()=>{
   if(document.hidden)return;
   const board=!$('#modal-board').hidden,day=!$('#modal-day').hidden,pb=!$('#modal-pboard').hidden,end=!$('#modal-stats').hidden&&!$('#end-panel').hidden;
   if(!board&&!day&&!pb&&!end)return;
-  const prev=[...online].sort().join();await refreshOnline();
-  if([...online].sort().join()===prev){paintPresence();return;}
+  const prev=presenceSig();await refreshOnline();
+  if(presenceSig()===prev){paintPresence();return;}
   if(board)loadBoard();
   if(day){const n=Number(($('#day-h').textContent.match(/\d+/)||[0])[0]);if(n)openDay(n);}
   if(pb||end)paintPresence();
@@ -471,9 +477,11 @@ async function loadBoard(){
     if(tab!==boardTab)return;
     const me=(username||'').toLowerCase();
     const fin=new Set(rows.map(r=>r.username.toLowerCase()));
-    const live=tab==='today'?onlineRows.filter(r=>!fin.has(r.username.toLowerCase())):[];
-    if(!rows.length&&!live.length){list.innerHTML='<div class="board-empty">'+(tab==='today'?'No results yet today. Be the first!':'No results yet.')+'</div>';return;}
-    const liveHtml=live.length?'<div class="live-h"><span class="on-dot"></span>Playing now</div>'+live.map(r=>`<div class="brow"><div class="rk">•</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,true)}</div><div class="vl">…</div></div>`).join('')+(rows.length?'<div class="live-h">Finished</div>':'') : '';
+    const pending=tab==='today'?onlineRows.filter(r=>!fin.has(String(r.username).toLowerCase())):[];
+    const liveNow=pending.filter(r=>r.status!=='idle'), idle=pending.filter(r=>r.status==='idle');
+    if(!rows.length&&!pending.length){list.innerHTML='<div class="board-empty">'+(tab==='today'?'No results yet today. Be the first!':'No results yet.')+'</div>';return;}
+    const pendRow=r=>`<div class="brow"><div class="rk">•</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,true)}</div><div class="vl">…</div></div>`;
+    const liveHtml=(liveNow.length?'<div class="live-h"><span class="on-dot"></span>Playing now</div>'+liveNow.map(pendRow).join(''):'')+(idle.length?'<div class="live-h"><span class="on-dot idle"></span>Started, not finished</div>'+idle.map(pendRow).join(''):'')+((liveNow.length||idle.length)&&rows.length?'<div class="live-h">Finished</div>':'');
     list.innerHTML=liveHtml+(tab==='today'?rows.map(r=>{const mine=r.username.toLowerCase()===me;
       return `<div class="brow${mine?' me':''}"><div class="rk">${r.rank}</div><div class="nm">${avatarHTML(r.username,r.avatar_url)}${nameHTML(r.username,true)}${r.hard_mode?'<span class="hm">★ hard</span>':''}</div><div class="vl">${r.won?r.guesses:'X'}/6<small>${new Date(r.finished_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</small></div></div>`;}).join(''):alltimeHTML(rows));
   }catch(e){if(tab===boardTab)list.innerHTML='<div class="board-empty">Leaderboard unavailable right now. Check your connection.</div>';}
@@ -622,7 +630,15 @@ if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('messag
 $('#btn-start').onclick=()=>{if(!username)openUser(false);
   else if(load('nameTaken',false)){openUser(true);$('#user-err').textContent='That username is taken – please choose another';$('#user-input').classList.add('bad');afterUserSaved=()=>openCalendar();}
   else goCalendar();};
-if(username){syncUser();syncAvatar();}
+function clearLocalIdentity(){username=null;save('username',null);save('userSynced',false);save('nameTaken',false);myAvatar=null;save('avatar',null);myCode=null;renderUser();}
+async function refreshProfile(){
+  if(!deviceId||(!username&&!load('userSynced',false)))return;
+  try{const r=await rpc('get_my_username',{p_device:deviceId});
+    if(r&&r.status==='no_player'){if(load('userSynced',false))clearLocalIdentity();return;}
+    if(r&&r.status==='ok'&&r.username){if(username!==r.username){username=r.username;save('username',username);renderUser();}save('userSynced',true);save('nameTaken',false);}
+  }catch(e){/* keep cached name on network/RPC errors */}
+}
+refreshProfile().then(()=>{if(username){syncUser();syncAvatar();}});
 renderStartLabel();loadRot();
 // ---------- sign-in code on the welcome page: off in Wordle Masters (code is in Settings) ----------
 const WL_CODE_UNTIL=0;

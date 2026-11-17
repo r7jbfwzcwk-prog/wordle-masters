@@ -254,6 +254,12 @@ body:not(.dark) .win-screen{background:radial-gradient(circle at 50% 40%,#e6f2e3
 .poke-done{font-size:13px;color:#a0a3a6;font-weight:700}
 .rot-box .poke-btn,.rot-box .poke-done{margin-top:10px}
 .on-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3bd16f;box-shadow:0 0 0 2px rgba(59,209,111,.28);margin-right:5px;vertical-align:middle;flex:none;animation:livepulse 1.2s infinite}
+.on-dot.idle{background:#e5484d;box-shadow:0 0 0 2px rgba(229,72,77,.28);animation:none}
+.dot-legend{display:flex;align-items:center;justify-content:center;flex:none;font-size:10px;font-weight:600;color:#818384;line-height:1;padding:4px 8px;border-top:1px solid var(--line);white-space:nowrap;gap:0;letter-spacing:.01em}
+.dot-legend .on-dot{margin:0 4px 0 10px;animation:none}
+.dot-legend .on-dot:first-child{margin-left:0}
+.board-box{border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+.board-box .board-list{min-height:120px}
 .pname.picker,.uname.picker,#pb-title.picker{border:1.5px solid #d4a017;border-radius:999px;padding:1px 8px;line-height:1.4}
 .brow.me .pname.picker,.brow.me .uname.picker{border-color:#fff}
 #pb-title{display:inline-flex;align-items:center}
@@ -265,8 +271,8 @@ body:not(.dark) .win-screen{background:radial-gradient(circle at 50% 40%,#e6f2e3
 .end-tabs{display:flex;gap:4px;background:var(--line);border-radius:10px;padding:3px;margin:0 0 8px}
 .end-tab{flex:1;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;font-size:13px;padding:6px 0;border-radius:8px;cursor:pointer}
 .end-tab.active{background:var(--modal-bg)}
-.end-board{--end-row-h:32px;max-height:calc(var(--end-row-h) * 8 + 2px);overflow:auto;margin:0;border:1px solid var(--line);border-radius:8px}
-.end-board .board-list{min-height:0}
+.end-board{--end-row-h:32px;display:flex;flex-direction:column;overflow:hidden;margin:0;border:1px solid var(--line);border-radius:8px}
+.end-board .board-list{min-height:0;max-height:calc(var(--end-row-h) * 8 + 2px);overflow:auto}
 .end-board .brow{height:var(--end-row-h);box-sizing:border-box;padding:0 6px;gap:6px;font-size:13px}
 .end-board .brow .rk{width:16px;font-size:12px}
 .end-board .brow .vl{font-size:11px;white-space:nowrap}

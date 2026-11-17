@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Wordle Masters">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body class="dark">
 <div id="app">
@@ -117,7 +117,7 @@
       <button class="tab" data-tab="all" role="tab">All time</button>
     </div>
     <div id="board-sub" class="board-sub"></div>
-    <div id="board-list" class="board-list"></div>
+    <div class="board-box"><div id="board-list" class="board-list"></div><div class="dot-legend" aria-hidden="true"><span class="on-dot"></span>Live now<span class="on-dot idle"></span>Started, not finished</div></div>
   </div>
 </div>
 
@@ -217,7 +217,7 @@
         <button type="button" class="end-tab active" data-endtab="all" role="tab" aria-selected="true">All-time</button>
         <button type="button" class="end-tab" data-endtab="today" role="tab" aria-selected="false">Daily</button>
       </div>
-      <div id="end-board" class="end-board"><div id="end-board-list" class="board-list"></div></div>
+      <div id="end-board" class="end-board"><div id="end-board-list" class="board-list"></div><div class="dot-legend" aria-hidden="true"><span class="on-dot"></span>Live now<span class="on-dot idle"></span>Started, not finished</div></div>
     </div>
     <div id="rot-box" class="rot-box" hidden></div>
     <div id="rem-box" class="rem-box" hidden></div>
@@ -269,6 +269,6 @@
 </div>
 
 <script src="words.js?v=1"></script>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
