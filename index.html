@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Wordle Masters">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body class="dark">
 <div id="app">
@@ -170,6 +170,21 @@
   </div>
 </div>
 
+
+<!-- Pick tomorrow's starting word -->
+<div class="overlay" id="modal-nominate" hidden>
+  <div class="modal rem-modal" role="dialog" aria-labelledby="nom-h">
+    <button class="close" aria-label="Close">&times;</button>
+    <h2 id="nom-h" class="modal-h-big">Pick tomorrow’s word</h2>
+    <p class="sub-sm">Everyone starts tomorrow with your word as guess 1. Choose wisely… or wickedly. Pick before midnight or your turn is skipped.</p>
+    <form id="nom-form" autocomplete="off">
+      <input id="nom-input" maxlength="5" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="5-letter word" aria-label="Tomorrow’s starting word">
+      <button class="btn-primary" id="nom-save" type="submit">Lock it in</button>
+    </form>
+    <div class="user-err" id="nom-err"></div>
+  </div>
+</div>
+
 <!-- Help modal -->
 <div class="overlay" id="modal-help" hidden>
   <div class="modal" role="dialog" aria-labelledby="help-h">
@@ -216,6 +231,10 @@
       <div class="end-tabs" role="tablist">
         <button type="button" class="end-tab active" data-endtab="all" role="tab" aria-selected="true">All-time</button>
         <button type="button" class="end-tab" data-endtab="today" role="tab" aria-selected="false">Daily</button>
+      </div>
+      <div id="end-pick" class="end-pick" hidden>
+        <div class="end-pick-h">🎉 It’s your turn to pick tomorrow’s word</div>
+        <button type="button" class="btn-primary end-pick-btn" id="end-pick-btn">Pick tomorrow’s word</button>
       </div>
       <div id="end-board" class="end-board"><div id="end-board-list" class="board-list"></div><div class="dot-legend" aria-hidden="true"><span class="on-dot"></span>Live now<span class="on-dot idle"></span>Started, not finished</div></div>
     </div>
@@ -269,6 +288,6 @@
 </div>
 
 <script src="words.js?v=1"></script>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

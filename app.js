@@ -195,7 +195,7 @@ function renderEndPanel(){
   $('#modal-stats').classList.add('end-open');
   const nm=$('#end-game-name');if(nm)nm.textContent=NAME;
   document.querySelectorAll('.end-tab').forEach(t=>{const on=t.dataset.endtab==='all';t.classList.toggle('active',on);t.setAttribute('aria-selected',on?'true':'false');});
-  renderRot();renderRem();loadEndBoard();
+  renderRot();renderPickUI();renderRem();loadEndBoard();
 }
 document.querySelectorAll('.end-tab').forEach(t=>t.onclick=()=>{
   endTab=t.dataset.endtab;
@@ -333,39 +333,45 @@ function applyStart(){
       setTimeout(()=>{t.classList.remove('flip-in');t.dataset.state=res[i];t.classList.add('flip-out');setTimeout(()=>t.classList.remove('flip-out'),250);},250);},i*200);});
     setTimeout(()=>colorKeys(w,res),1300);}
   renderStartLabel();}
+function isMyPendingPick(){return !!(rot&&rot.status==='ok'&&rot.next_by&&!rot.next_chosen&&(rot.can_nominate||rot.my_turn||(username&&String(rot.next_by).toLowerCase()===String(username).toLowerCase())));}
+function renderPickUI(){const b=$('#end-pick');if(b)b.hidden=!isMyPendingPick();renderStartLabel();renderCalPoke();
+  if(!$('#modal-stats').hidden&&!$('#end-panel').hidden)renderRot();}
+function openNominate(){if(!isMyPendingPick())return;openModal('nominate');const err=$('#nom-err');if(err)err.textContent='';const i=$('#nom-input');if(i){i.value='';i.classList.remove('bad');setTimeout(()=>i.focus(),50);}}
 function renderStartLabel(){const el=$('#start-label');
   let today='';
   if(state.startWord&&state.startBy)today=state.startSkipped?`@${esc(state.startBy)} skipped their turn, so today’s starting word is random 🎲`:`Starting word chosen by <b>@${esc(state.startBy)}</b>`;
   let next='';
-  if(rot&&rot.status==='ok'&&rot.next_by){const mine=!!(rot.my_turn||(username&&String(rot.next_by).toLowerCase()===String(username).toLowerCase()));
-    next=mine?'Your pick tomorrow':`Tomorrow’s word: <b>@${esc(rot.next_by)}</b>’s pick`;}
+  if(rot&&rot.status==='ok'&&rot.next_by){const mine=!!(rot.my_turn||rot.can_nominate||(username&&String(rot.next_by).toLowerCase()===String(username).toLowerCase()));
+    if(mine&&!rot.next_chosen)next=`<button type="button" class="next-pick next-pick-btn" data-pick>Your pick tomorrow — Tap to choose</button>`;
+    else next=mine?'You’ve locked in tomorrow’s word':`Tomorrow’s word: <b>@${esc(rot.next_by)}</b>’s pick`;}
   if(!today&&!next){el.hidden=true;el.innerHTML='';return;}
   el.innerHTML=today+(next?`<div class="next-pick">${next}</div>`:'');el.hidden=false;}
 async function loadRot(){
   try{rot=await rpc('get_rotation_state',{p_puzzle:puzzleNo,p_device:deviceId});}catch(e){rot=null;}
-  rotTried=true;applyStart();renderTurnNotes();renderCalPoke();if(pokeFromLink())maybeShowPoke();}
+  rotTried=true;applyStart();renderPickUI();
+  if(pickFromLink()&&isMyPendingPick()){document.querySelectorAll('.screen').forEach(sc=>sc.hidden=true);try{history.replaceState({},'',location.pathname+(location.hash||''));}catch(e){}openNominate();}
+  else if(pokeFromLink())maybeShowPoke();}
 function renderTurnNotes(){if(!$('#modal-stats').hidden&&!$('#end-panel').hidden)renderRot();}
 function renderRot(){const box=$('#rot-box');
   if(!rot||rot.status!=='ok'||!rot.next_by){box.hidden=true;return;}
+  if(isMyPendingPick()){box.hidden=true;return;}
   box.hidden=false;
-  if(rot.can_nominate){
-    box.innerHTML=`<div class="rot-h">🎉 It’s your turn to pick tomorrow’s starting word!</div><div class="rot-s">Everyone starts tomorrow with your word as guess 1. Choose wisely… or wickedly. Pick before midnight or your turn is skipped.</div>
-      <form id="rot-form" autocomplete="off"><input id="rot-input" maxlength="5" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="5-letter word"><button class="btn-small" id="rot-save" type="submit">Lock it in</button></form><div class="user-err" id="rot-err"></div>`;
-    $('#rot-form').onsubmit=nominate;}
-  else if(rot.my_turn&&!rot.next_chosen){if(state.status==='playing'){box.hidden=true;return;}box.innerHTML='<div class="rot-s">Saving your result…</div>';}
-  else if(rot.my_turn)box.innerHTML='<div class="rot-s">✓ You’ve locked in tomorrow’s starting word. No peeking!</div>';
+  if(rot.my_turn)box.innerHTML='<div class="rot-s">✓ You’ve locked in tomorrow’s starting word. No peeking!</div>';
   else{box.innerHTML=`<div class="rot-s">Tomorrow’s starting word: <b>@${esc(rot.next_by)}</b>’s pick ${rot.next_chosen?'✓':'(not chosen yet)'}</div>`+pokeBtnHTML();bindPokeBtn(box);}}
-async function nominate(e){e.preventDefault();const w=$('#rot-input').value.trim().toLowerCase(),err=t=>{$('#rot-err').textContent=t;};
+async function nominate(e){e.preventDefault();
+  const input=$('#nom-input')||$('#rot-input'),errEl=$('#nom-err')||$('#rot-err'),saveBtn=$('#nom-save')||$('#rot-save');
+  const w=(input?input.value:'').trim().toLowerCase(),err=t=>{if(errEl)errEl.textContent=t;if(input)input.classList.add('bad');};
   if(!/^[a-z]{5}$/.test(w))return err('It needs to be exactly 5 letters');
   if(!VALID.has(w))return err('Not a real word');
   if(w===answerFor(puzzleNo+1))return err('Sneaky! That word can’t be used. Try another');
   if(w===(state.startWord||null))return err('That was today’s starting word. Pick a different one');
-  $('#rot-save').disabled=true;
+  if(saveBtn)saveBtn.disabled=true;
   try{const r=await rpc('submit_start_word',{p_device:deviceId,p_puzzle:puzzleNo+1,p_word:w});
     const m={ok:null,already_set:'Already chosen',not_your_turn:'It’s not your turn',not_finished:'Finish today’s puzzle first',too_late:'Too late, the day has ended',same_as_yesterday:'That was today’s starting word. Pick a different one',invalid:'Not a real word'};
-    if(r==='ok'){toast('Locked in! Tomorrow starts with '+w.toUpperCase(),2500);}else err(m[r]||'Something went wrong');
+    if(r==='ok'){toast('Locked in! Tomorrow starts with '+w.toUpperCase(),2500);closeModals();if(state.status!=='playing')openModal('end');}
+    else err(m[r]||'Something went wrong');
   }catch(x){err('No connection, try again');}
-  $('#rot-save')&&($('#rot-save').disabled=false);
+  if(saveBtn)saveBtn.disabled=false;
   if(rot)await loadRot();}
 
 
@@ -373,7 +379,9 @@ function brisbaneHour(){return Number(new Intl.DateTimeFormat('en-AU',{timeZone:
 function pokeOn(){return !!(rot&&rot.status==='ok'&&rot.next_by&&!rot.next_chosen&&!rot.my_turn&&(rot.poke_open||brisbaneHour()>=19));}
 function pokeBtnHTML(){if(!pokeOn())return '';return rot.poked?'<div class="poke-done">Poked ✓</div>':`<button type="button" class="poke-btn" data-poke>👉 Poke @${esc(rot.next_by)} to pick tomorrow’s word</button>`;}
 function bindPokeBtn(root){const b=root&&root.querySelector('[data-poke]');if(b)b.onclick=()=>doPoke();}
-function renderCalPoke(){const el=$('#cal-poke');if(!el)return;if(!pokeOn()){el.hidden=true;el.innerHTML='';return;}el.hidden=false;el.innerHTML=pokeBtnHTML();bindPokeBtn(el);}
+function renderCalPoke(){const el=$('#cal-poke');if(!el)return;
+  if(isMyPendingPick()){el.hidden=false;el.innerHTML='<button type="button" class="btn-primary" id="cal-pick-btn" style="height:48px;font-size:16px">Pick tomorrow’s word</button>';$('#cal-pick-btn').onclick=()=>openNominate();return;}
+  if(!pokeOn()){el.hidden=true;el.innerHTML='';return;}el.hidden=false;el.innerHTML=pokeBtnHTML();bindPokeBtn(el);}
 function renderPokeModal(){if(!rot||!rot.next_by)return;$('#poke-h').textContent='Poke @'+rot.next_by+'?';$('#poke-copy').textContent='They haven’t picked tomorrow’s starting word yet. Send them a notification.';$('#poke-send').textContent='👉 Poke @'+rot.next_by;$('#poke-send').disabled=!!rot.poked;}
 function maybeShowPoke(){if(!pokeOn()||rot.poked)return false;
   const fromLink=pokeFromLink();
@@ -381,7 +389,7 @@ function maybeShowPoke(){if(!pokeOn()||rot.poked)return false;
   if(!$('#modal-user').hidden&&$('#modal-user').dataset.required)return false;
   if(fromLink){document.querySelectorAll('.screen').forEach(sc=>sc.hidden=true);try{history.replaceState({},'',location.pathname+(location.hash||''));}catch(e){}pokeFromMsg=false;}
   openModal('poke');renderPokeModal();return true;}
-function afterFinish(){if(!maybeShowPoke())openModal('end');}
+async function afterFinish(){if(!rotTried)await loadRot();if(isMyPendingPick()){openNominate();return;}if(!maybeShowPoke())openModal('end');}
 function dismissPoke(){save('pokeDismissed',dayKey());closeModals();if(state.status!=='playing')openModal('end');}
 async function doPoke(){if(!deviceId||!pokeOn()||rot.poked)return;
   document.querySelectorAll('[data-poke],#poke-send').forEach(b=>b.disabled=true);
@@ -420,6 +428,11 @@ function renderRem(){const box=$('#rem-box');if(!box)return;
 $('#rem-allow').onclick=async()=>{$('#modal-rem').hidden=true;const r=await enablePush();if(r==='granted')toast('Reminders on! See you at 6pm 😉',2000);};
 $('#rem-later').onclick=()=>{save('remDismissed',dayKey());$('#modal-rem').hidden=true;};
 $('#poke-later').onclick=dismissPoke;$('#poke-send').onclick=()=>doPoke();
+$('#end-pick-btn')&&($('#end-pick-btn').onclick=()=>openNominate());
+$('#nom-form')&&$('#nom-form').addEventListener('submit',nominate);
+$('#start-label')&&$('#start-label').addEventListener('click',e=>{if(e.target.closest('[data-pick]'))openNominate();});
+$('#modal-nominate')&&$('#modal-nominate').addEventListener('click',e=>{if(e.target===$('#modal-nominate')||e.target.closest('.close')){if(state.status!=='playing')setTimeout(()=>openModal('end'),0);}});
+
 $('#modal-poke').addEventListener('click',e=>{if(e.target===$('#modal-poke')||e.target.closest('.close'))dismissPoke();});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{scope:'./'}).then(r=>{swReg=r;syncPush();}).catch(()=>{});
 if(isStandalone&&pushSupported&&Notification.permission==='default'&&load('remDismissed',null)!==dayKey())$('#modal-rem').hidden=false;
@@ -444,6 +457,7 @@ async function syncUser(){
 let boardTab='today';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pokeFromLink=()=>qs.get('poke')==='1'||!!pokeFromMsg;
+const pickFromLink=()=>qs.get('pick')==='1';
 let pokeFromMsg=false,onlineRows=[],onlineMap=new Map();
 const presenceOf=n=>onlineMap.get(String(n||'').toLowerCase())||'';
 const isPicker=n=>!!(rot&&rot.next_by&&String(n||'').toLowerCase()===String(rot.next_by).toLowerCase());
@@ -629,7 +643,7 @@ $('#cal-back').onclick=()=>{if(calFromGame)openGame();else showScreen('screen-we
 function openCalendar(){renderCal();showScreen('screen-cal');}
 function openGame(){showScreen(null);
   if(!load('seenHelp',false)){save('seenHelp',true);setTimeout(()=>openModal('help'),360);}
-  else if(state.status!=='playing')setTimeout(()=>{if(!maybeShowPoke())openModal('end');},500);}
+  else if(state.status!=='playing')setTimeout(()=>{if(isMyPendingPick()){openNominate();return;}if(!maybeShowPoke())openModal('end');},500);}
 afterUserSaved=first=>{if(pokeFromLink()&&maybeShowPoke())return;if(first)goCalendar();};
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.poke){pokeFromMsg=true;maybeShowPoke();}});
 $('#btn-start').onclick=()=>{if(!username)openUser(false);
