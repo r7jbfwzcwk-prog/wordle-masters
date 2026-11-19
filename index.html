@@ -14,7 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Wordle Masters">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body class="dark">
 <div id="app">
@@ -175,12 +175,14 @@
 <div class="overlay" id="modal-nominate" hidden>
   <div class="modal rem-modal" role="dialog" aria-labelledby="nom-h">
     <button class="close" aria-label="Close">&times;</button>
-    <h2 id="nom-h" class="modal-h-big">Pick tomorrow’s word</h2>
+    <h2 id="nom-h" class="modal-h-big nom-h">Hey, it’s your turn to pick tomorrow’s word!</h2>
+    <p class="nom-callout">Pick it now! Don’t wait!</p>
     <p class="sub-sm">Everyone starts tomorrow with your word as guess 1. Choose wisely… or wickedly. Pick before midnight or your turn is skipped.</p>
     <form id="nom-form" autocomplete="off">
       <input id="nom-input" maxlength="5" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="5-letter word" aria-label="Tomorrow’s starting word">
-      <button class="btn-primary" id="nom-save" type="submit">Lock it in</button>
+      <button class="btn-primary" id="nom-save" type="submit" disabled>Lock it in</button>
     </form>
+    <div class="nom-hint" id="nom-hint" hidden></div>
     <div class="user-err" id="nom-err"></div>
   </div>
 </div>
@@ -288,6 +290,6 @@
 </div>
 
 <script src="words.js?v=1"></script>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

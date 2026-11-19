@@ -336,7 +336,13 @@ function applyStart(){
 function isMyPendingPick(){return !!(rot&&rot.status==='ok'&&rot.next_by&&!rot.next_chosen&&(rot.can_nominate||rot.my_turn||(username&&String(rot.next_by).toLowerCase()===String(username).toLowerCase())));}
 function renderPickUI(){const b=$('#end-pick');if(b)b.hidden=!isMyPendingPick();renderStartLabel();renderCalPoke();
   if(!$('#modal-stats').hidden&&!$('#end-panel').hidden)renderRot();}
-function openNominate(){if(!isMyPendingPick())return;openModal('nominate');const err=$('#nom-err');if(err)err.textContent='';const i=$('#nom-input');if(i){i.value='';i.classList.remove('bad');setTimeout(()=>i.focus(),50);}}
+function openNominate(){if(!isMyPendingPick())return;openModal('nominate');const err=$('#nom-err');if(err)err.textContent='';const i=$('#nom-input');if(i){i.value='';i.classList.remove('bad');setTimeout(()=>i.focus(),50);}updateNomReady();}
+function updateNomReady(){const i=$('#nom-input'),b=$('#nom-save'),hint=$('#nom-hint');if(!b)return;
+  const w=((i&&i.value)||'').trim().toLowerCase();
+  const ok=/^[a-z]{5}$/.test(w)&&VALID.has(w);
+  b.disabled=!ok;b.classList.toggle('is-ready',ok);
+  if(i)i.classList.toggle('bad',w.length===5&&!ok);
+  if(hint){if(w.length===5&&!ok){hint.textContent='Not in word list';hint.hidden=false;}else{hint.textContent='';hint.hidden=true;}}}
 function renderStartLabel(){const el=$('#start-label');
   let today='';
   if(state.startWord&&state.startBy)today=state.startSkipped?`@${esc(state.startBy)} skipped their turn, so today’s starting word is random 🎲`:`Starting word chosen by <b>@${esc(state.startBy)}</b>`;
@@ -360,9 +366,8 @@ function renderRot(){const box=$('#rot-box');
   else{box.innerHTML=`<div class="rot-s">Tomorrow’s starting word: <b>@${esc(rot.next_by)}</b>’s pick ${rot.next_chosen?'✓':'(not chosen yet)'}</div>`+pokeBtnHTML();bindPokeBtn(box);}}
 async function nominate(e){e.preventDefault();
   const input=$('#nom-input')||$('#rot-input'),errEl=$('#nom-err')||$('#rot-err'),saveBtn=$('#nom-save')||$('#rot-save');
-  const w=(input?input.value:'').trim().toLowerCase(),err=t=>{if(errEl)errEl.textContent=t;if(input)input.classList.add('bad');};
-  if(!/^[a-z]{5}$/.test(w))return err('It needs to be exactly 5 letters');
-  if(!VALID.has(w))return err('Not a real word');
+  const w=(input?input.value:'').trim().toLowerCase(),err=t=>{if(errEl)errEl.textContent=t;if(input)input.classList.add('bad');updateNomReady();};
+  if(!/^[a-z]{5}$/.test(w)||!VALID.has(w)){updateNomReady();return;}
   if(w===answerFor(puzzleNo+1))return err('Sneaky! That word can’t be used. Try another');
   if(w===(state.startWord||null))return err('That was today’s starting word. Pick a different one');
   if(saveBtn)saveBtn.disabled=true;
@@ -430,6 +435,7 @@ $('#rem-later').onclick=()=>{save('remDismissed',dayKey());$('#modal-rem').hidde
 $('#poke-later').onclick=dismissPoke;$('#poke-send').onclick=()=>doPoke();
 $('#end-pick-btn')&&($('#end-pick-btn').onclick=()=>openNominate());
 $('#nom-form')&&$('#nom-form').addEventListener('submit',nominate);
+$('#nom-input')&&$('#nom-input').addEventListener('input',updateNomReady);
 $('#start-label')&&$('#start-label').addEventListener('click',e=>{if(e.target.closest('[data-pick]'))openNominate();});
 $('#modal-nominate')&&$('#modal-nominate').addEventListener('click',e=>{if(e.target===$('#modal-nominate')||e.target.closest('.close')){if(state.status!=='playing')setTimeout(()=>openModal('end'),0);}});
 
